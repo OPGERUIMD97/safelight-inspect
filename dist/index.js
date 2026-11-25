@@ -263,7 +263,7 @@ export function activate(api) {
   }
 
   function ensureCanvas(space) {
-    const host = view.root?.querySelector?.("[data-inspect-deep]");
+    const host = document.querySelector("[data-inspect-deep]");
     if (!host) return null;
     const v = viewDev();
     if (!canvasEl || canvasEl.parentNode !== host || (space && space !== ctxSpace)) {
@@ -359,20 +359,36 @@ export function activate(api) {
       zoomDeep(next, client);
       return;
     }
+    if (!view.frame) void probeFrame();
     const pct = corePct();
-    if (d < 0 && pct != null && pct >= CORE_MAX * 100 - 3 && captureRegion()) {
+    if (d < 0 && atCoreMax(pct) && captureRegion() && view.frame) {
       e.preventDefault(); e.stopPropagation();
       enterDeep(CORE_MAX * factor, client);
+      return;
     }
+    if (d < 0) lastInPct = pct;
+  }
+
+  // Core is at its top zoom: at 200%, or it no longer grows while you scroll in
+  // (rounding in the readout, a frame of another size).
+  let lastInPct = null;
+  function atCoreMax(pct) {
+    if (pct == null) return false;
+    if (pct >= CORE_MAX * 100 - 8) return true;
+    return pct >= 150 && lastInPct != null && Math.abs(pct - lastInPct) < 0.5;
   }
 
   let drag = null;
+  // Dragging pans the deep view. It sits in a layer of its own above the
+  // canvas, so the press is always its own.
   function onPointerDown(e) {
     if (!state.deep || e.button !== 0) return;
     if (!(e.target instanceof Element) || !e.target.closest("[data-inspect-deep]")) return;
     e.preventDefault(); e.stopPropagation();
     drag = { x: e.clientX, y: e.clientY };
-    e.target.setPointerCapture?.(e.pointerId);
+    try { e.target.setPointerCapture?.(e.pointerId); } catch (err) {}
+    const host = document.querySelector("[data-inspect-deep]");
+    if (host) host.style.cursor = "grabbing";
   }
   function onPointerMove(e) {
     if (overPhotoArea(e) && !overBar(e)) lastPhotoPoint = { x: e.clientX, y: e.clientY };
@@ -382,12 +398,18 @@ export function activate(api) {
     drag = { x: e.clientX, y: e.clientY };
     redraw(true);
   }
-  function onPointerUp() { drag = null; }
+  function onPointerUp() {
+    if (!drag) return;
+    drag = null;
+    const host = document.querySelector("[data-inspect-deep]");
+    if (host) host.style.cursor = "grab";
+  }
 
   window.addEventListener("wheel", onWheel, { capture: true, passive: false });
   window.addEventListener("pointerdown", onPointerDown, true);
   window.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
   window.addEventListener("pointerup", onPointerUp, true);
+  window.addEventListener("pointercancel", onPointerUp, true);
 
   // Core's keyboard zoom anchors at the last mouse point; a click on the bar
   // would move it there, so put it back on the photo first.
@@ -553,10 +575,36 @@ export function activate(api) {
     useEffect(() => { if (s.open && !s.deep) setState({ pct: corePct() }); });
     useEffect(() => { if (s.deep) redraw(true); }, [s.deep]);
     return h("div", { ref: root, "data-inspect-layer": "", style: { position: "absolute", inset: 0, pointerEvents: "none" } },
-      s.open && s.deep
-        ? h("div", { "data-inspect-deep": "", style: { position: "absolute", inset: 0, background: "#000", pointerEvents: "auto", cursor: "grab" } })
-        : null,
+      s.open && s.deep ? h(DeepView, null) : null,
       s.open ? h(InspectBar, null) : null);
+  }
+
+  // The deep view: a layer of its own on the page, laid exactly over the canvas
+  // area, so the canvas's own tools never take its drag.
+  function DeepView() {
+    const [box, setBox] = React.useState(() => rootBox());
+    useEffect(() => {
+      const update = () => setBox(rootBox());
+      const ro = typeof ResizeObserver !== "undefined" && view.root ? new ResizeObserver(update) : null;
+      ro?.observe(view.root);
+      window.addEventListener("resize", update);
+      const t = setTimeout(update, 0);
+      return () => { ro?.disconnect(); window.removeEventListener("resize", update); clearTimeout(t); };
+    }, []);
+    useEffect(() => { redraw(false); }, [box.left, box.top, box.width, box.height]);
+    if (!createPortal) return null;
+    return createPortal(h("div", {
+      "data-inspect-deep": "",
+      onContextMenu: (e) => e.preventDefault(),
+      style: {
+        position: "fixed", left: box.left, top: box.top, width: box.width, height: box.height,
+        zIndex: 2147482000, background: "#000", cursor: "grab", touchAction: "none", userSelect: "none",
+      },
+    }), document.body);
+  }
+  function rootBox() {
+    const r = view.root?.getBoundingClientRect?.();
+    return r ? { left: r.left, top: r.top, width: r.width, height: r.height } : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
   }
 
   // The floating bar, in a portal so it stays clickable over everything.
