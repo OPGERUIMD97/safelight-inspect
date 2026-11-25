@@ -38,14 +38,11 @@ With the **Developer Tools** extension: unzip the release into your dev folder (
 
 ## Changelog
 
-### 1.1.0
-- Zoom up to **800%**, scrolling around the mouse. Past Safelight's 200% Inspect draws the view itself, pixel-sharp.
-- Zoom readout in the bar, live while scrolling; stops for 400% and 800%; the buttons zoom around the last mouse point on the photo.
-- Works from the Library: **I** on a selected photo opens it in Develop and inspects it; closing brings you back to the Library.
-- **Inspect** button in the Library toolbar.
-
 ### 1.0.0
-- First release: one key for a full-screen 100% view, zoom bar with Fit / 100% / 200% and − / +, Escape to close.
+- First release: one key (**I**) for a full-screen magnified view, from Develop or a selected photo in the Library (closing brings you back to the Library).
+- Scroll to zoom around the mouse up to **800%**; past Safelight's 200% Inspect draws the view itself, pixel-sharp, and you can drag to pan.
+- Zoom readout in the bar, stops for Fit / 100% / 200% / 400% / 800%, − / +, Escape or ✕ to close.
+- **Inspect** button in the Develop status bar and the Library toolbar.
 
 ## License
 

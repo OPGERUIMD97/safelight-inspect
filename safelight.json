@@ -1,7 +1,7 @@
 {
   "id": "safelight-inspect",
   "name": "Inspect",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "description": "One key for a full-screen magnified view, from Develop or a selected photo in the Library: panels hidden, full screen, 100% or 200%, to check sharpness, fine detail and noise.",
   "author": "Mc5",
   "main": "dist/index.js",

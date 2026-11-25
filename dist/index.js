@@ -15,7 +15,7 @@
 // smoothing so single pixels stay sharp.
 
 const EXT = "safelight-inspect";
-const VERSION = "1.1.0";
+const VERSION = "1.0.0";
 const ACTION_ID = `${EXT}.toggle`;
 
 export const ZOOM_STOPS = [
