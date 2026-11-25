@@ -1,0 +1,13 @@
+{
+  "id": "safelight-inspect",
+  "name": "Inspect",
+  "version": "1.0.0",
+  "description": "One key for a full-screen magnified view in Develop: panels hidden, full screen, 100% or 200%, to check sharpness, fine detail and noise.",
+  "author": "Mc5",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "categories": ["Workflow"],
+  "keywords": ["inspect", "zoom", "fullscreen", "sharpness", "noise", "develop"],
+  "repository": "OPGERUIMD97/safelight-inspect",
+  "minAppVersion": "3.2.6"
+}
