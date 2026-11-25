@@ -1,17 +1,18 @@
 // Inspect — one key for a full-screen magnified view in Develop.
 //
-// Press the Inspect key (default I) in Develop: the panels are hidden, the
+// Press the Inspect key (default I) in Develop, or in the Library on a
+// selected photo (it opens in Develop first): the panels are hidden, the
 // window goes full screen and the photo zooms to 100% around the mouse. A
 // small bar at the bottom switches between Fit, 100% and 200%, or steps in and
-// out. Escape, the ✕ button or the
-// key again brings everything back as it was.
+// out. Escape, the ✕ button or the key again brings everything back as it was,
+// back in the Library when you started there.
 //
 // It drives Safelight's own actions (Hide / show all panels, Fullscreen, the
 // Develop zoom shortcuts) through their current bindings, so it follows the
 // person's own key choices and core's canvas does the drawing.
 
 const EXT = "safelight-inspect";
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const ACTION_ID = `${EXT}.toggle`;
 
 export const ZOOM_STOPS = [
@@ -71,6 +72,8 @@ export function activate(api) {
   const { useSyncExternalStore } = React;
   const createPortal = api.reactDom?.createPortal;
   const useUIStore = api.stores?.useUIStore;
+  const useCatalogStore = api.stores?.useCatalogStore;
+  const useDevelopStore = api.stores?.useDevelopStore;
   const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform || navigator.userAgent || "");
 
   // ── state ────────────────────────────────────────────────────────────────
@@ -82,7 +85,9 @@ export function activate(api) {
 
   let panelsHidden = false;   // we hid the panels, so we show them again
   let enteredFullscreen = false;
+  let returnToLibrary = false; // started in the Library: go back there on close
 
+  const moduleNow = () => useUIStore?.getState?.().activeModule ?? "develop";
   const inDevelop = () => (useUIStore?.getState?.().activeModule ?? "develop") === "develop";
 
   // Run a core action through its current binding.
@@ -123,14 +128,56 @@ export function activate(api) {
     panelsHidden = false;
     if (enteredFullscreen && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     enteredFullscreen = false;
+    if (returnToLibrary) {
+      returnToLibrary = false;
+      useUIStore?.getState?.().setActiveModule?.("library");
+    }
   }
 
-  const toggle = () => (state.open ? close() : open());
+  // Library: the photo to inspect is the active one when it's selected, else the
+  // first selected one, else the active one.
+  function libraryTarget() {
+    const cat = useCatalogStore?.getState?.();
+    if (!cat) return null;
+    const sel = cat.selectedIds instanceof Set ? cat.selectedIds : new Set(cat.selectedIds || []);
+    if (cat.activePhotoId && (sel.size === 0 || sel.has(cat.activePhotoId))) return cat.activePhotoId;
+    return sel.size ? [...sel][0] : null;
+  }
+
+  // From the Library: open the photo in Develop, wait until its edit is held and
+  // the canvas is up, then inspect.
+  function openFromLibrary() {
+    const id = libraryTarget();
+    if (!id) return;
+    const cat = useCatalogStore.getState();
+    if (cat.activePhotoId !== id) cat.setActivePhoto?.(id);
+    useUIStore.getState().setActiveModule?.("develop");
+    const started = Date.now();
+    const tick = () => {
+      const ready = inDevelop()
+        && (!useDevelopStore || useDevelopStore.getState?.().photoId === id)
+        && document.querySelector("[data-canvas-surround]");
+      if (ready) {
+        open();
+        returnToLibrary = state.open;
+      } else if (Date.now() - started < 4000) {
+        setTimeout(tick, 60);
+      }
+    };
+    setTimeout(tick, 60);
+  }
+
+  function toggle() {
+    if (state.open) return close();
+    const m = moduleNow();
+    if (m === "develop") open();
+    else if (m === "library") openFromLibrary();
+  }
 
   api.registerKeybinding({
     id: ACTION_ID,
     label: "Inspect (full-screen magnified view)",
-    category: "Develop",
+    category: "General",
     defaultCombo: "I",
     handler: toggle,
   });
@@ -195,16 +242,19 @@ export function activate(api) {
   // A button in the Develop status bar, next to the zoom controls.
   function ToolbarButton() {
     const s = useInspect();
+    const inLibrary = useUIStore ? useUIStore((st) => st.activeModule === "library") : false;
     const combo = api.keybindings?.getBinding?.(ACTION_ID) || "";
     return h("button", {
       type: "button", onClick: toggle, "aria-pressed": s.open,
-      title: `Inspect: full-screen magnified view${combo ? ` (${combo})` : ""}`,
-      style: { ...barBtn(s.open), fontSize: 11, padding: "2px 8px" },
+      className: inLibrary ? "sl-library-toolbar-action" : undefined,
+      title: `Inspect: full-screen magnified view${inLibrary ? " of the selected photo" : ""}${combo ? ` (${combo})` : ""}`,
+      style: inLibrary ? undefined : { ...barBtn(s.open), fontSize: 11, padding: "2px 8px" },
     }, "Inspect");
   }
 
   api.registerSlot({ id: `${EXT}.bar`, slot: "develop-canvas-overlay", component: InspectBar });
   api.registerSlot({ id: `${EXT}.button`, slot: "develop-toolbar", component: ToolbarButton, order: 90 });
+  api.registerSlot({ id: `${EXT}.library-button`, slot: "library-toolbar", component: ToolbarButton, order: 90 });
 
   console.log(`[${EXT}] v${VERSION} loaded`);
 }
